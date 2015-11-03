@@ -31,10 +31,10 @@
 		<td><%= grade.style %></td>
 	</tr>
     <% end %>
-    <% if grade.grade %>
+    <% if g.grade || g.calculated_grade %>
 	<tr>
 		<td>Final</td>
-		<td><%= translate_grade(grade.grade) %></td>
+		<td><%= translate_grade(g.grade || g.calculated_grade) %></td>
 	</tr>
     <% end %>
 </table>
