@@ -20,9 +20,11 @@ module LrsHelper
 			
 			uri = URI.parse(monitoring_url)
 			http = Net::HTTP.new(uri.host, uri.port)
+			Rails.logger.info "#{uri.host}:#{uri.port}"
 			request = Net::HTTP::Post.new("#{uri.path}?#{uri.query}")
 			request.body = "pset=#{pset}&scope=#{grade.scope}&correctness=#{grade.correctness}&design=#{grade.design}&style=#{grade.style}&grade=#{final_grade}"
-			Rails.logger.info request.inspect
+			Rails.logger.info request.path
+			Rails.logger.info request.body
 			response = http.request(request)
 		end
 	end

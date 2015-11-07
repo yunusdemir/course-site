@@ -18,7 +18,7 @@ end
 
 scheduler.every '15m' do
 	if Settings['mail_address']
-		Grade.where("grades.updated_at < ? and grades.mailed_at < grades.updated_at and grades.public = ?", 2.hours.ago, true).joins([:submit]).find_each do |g|
+		Grade.where("grades.updated_at < ? and grades.public = ?", 2.hours.ago, true).joins([:submit]).find_each do |g|
 			lrs_push(g)
 		end
 	end
