@@ -26,6 +26,7 @@ module LrsHelper
 			Rails.logger.info request.path
 			Rails.logger.info request.body
 			response = http.request(request)
+			Rails.logger.info response.inspect
 		end
 	end
 	
