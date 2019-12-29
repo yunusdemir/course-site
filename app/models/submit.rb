@@ -1,13 +1,16 @@
-class Submit < ActiveRecord::Base
+class Submit < ApplicationRecord
 
 	belongs_to :user
 	delegate :name, to: :user, prefix: true, allow_nil: true
+	delegate :suspect_name, to: :user, prefix: true, allow_nil: true
 
 	belongs_to :pset
 	delegate :name, to: :pset, prefix: true, allow_nil: true
 
 	has_one :grade, dependent: :destroy
 	delegate :status, to: :grade, prefix: true, allow_nil: true
+	delegate :first_graded, to: :grade, allow_nil: true
+	delegate :last_graded, to: :grade, allow_nil: true
 
 	serialize :submitted_files
 	serialize :check_feedback
@@ -18,7 +21,7 @@ class Submit < ActiveRecord::Base
 	# TODO only hide stuff that's not been autograded if autograding is actually enabled
 	scope :to_grade,  -> do
 		includes(:user, :pset, :grade).
-		where(grades: { status: [nil, Grade.statuses[:open]] }).
+		where(grades: { status: [nil, Grade.statuses[:unfinished]] }).
 		where(users: { active: true }).
 		where("psets.automatic = ? or submits.check_results is not null", false).
 		order('submits.created_at asc')
@@ -26,7 +29,7 @@ class Submit < ActiveRecord::Base
 
 	scope :admin_to_grade,  -> do
 		includes(:user, :pset, :grade).
-		where(grades: { status: [nil, Grade.statuses[:open], Grade.statuses[:finished]] }).
+		where(grades: { status: [nil, Grade.statuses[:unfinished], Grade.statuses[:finished]] }).
 		where(users: { active: true }).
 		where("psets.automatic = ? or submits.check_results is not null", false).
 		order('submits.created_at asc')
@@ -52,6 +55,10 @@ class Submit < ActiveRecord::Base
 
 	def graded?
 		return (self.grade && (!self.grade.grade.blank? || !self.grade.calculated_grade.blank?))
+	end
+	
+	def last_submitted
+		submitted_at && submitted_at.to_formatted_s(:short) || "never"
 	end
 	
 	def automatic
@@ -120,6 +127,28 @@ class Submit < ActiveRecord::Base
 					return 5
 				end
 			end
+		end
+	end
+	
+	def register_check_results(json)
+		# put results into db
+		self.check_token = nil
+		self.check_results = json
+		
+		# create a create if needed
+		grade = self.grade || self.build_grade
+		
+		# check via the grade if this submit is OK
+		grade.reset_automatic_grades(self.automatic)
+		grade.set_calculated_grade
+		grade.status = Grade.statuses[:published]
+		grade.save
+		
+		self.save
+
+		# if not OK, send an e-mail
+		if grade.calculated_grade == 0
+			GradeMailer.bad_submit(self).deliver
 		end
 	end
 	

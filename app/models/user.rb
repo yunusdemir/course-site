@@ -1,11 +1,11 @@
-class User < ActiveRecord::Base
+class User < ApplicationRecord
 	
 	serialize :grades_cache
 	
 	# normal users
-	belongs_to :group
-	belongs_to :schedule
-	belongs_to :current_module, class_name: "ScheduleSpan"
+	belongs_to :group, optional: true
+	belongs_to :schedule, optional: true
+	belongs_to :current_module, class_name: "ScheduleSpan", optional: true
 	
 	# permissions for heads/tas
 	has_and_belongs_to_many :groups
@@ -25,7 +25,8 @@ class User < ActiveRecord::Base
 
 	scope :staff, -> { where(role: [User.roles[:admin], User.roles[:assistant], User.roles[:head]]) }
 	scope :not_staff, -> { where.not(id: staff) }
-	# scope :active,    -> { where(active: true) }
+	
+	scope :not_inactive,    -> { where(active: true) }
 	
 	scope :active, -> { where('users.active != ? and users.done != ? and (users.started_at < ? or last_submitted_at is not null)', false, true, DateTime.now) }
 	scope :registered, -> { where('users.last_submitted_at is null and (users.started_at is null or users.started_at > ?)', DateTime.now).where(active: true) }
@@ -66,6 +67,15 @@ class User < ActiveRecord::Base
 		if login
 			return Login.find_by_login(login).user
 		end
+	end
+	
+	def initials
+		name.split.map(&:first).join
+	end
+	
+	def suspect_name
+		first, *rest = *name.split
+		first + " " + rest.map(&:first).join()
 	end
 	
 	def submit(pset)
@@ -122,6 +132,19 @@ class User < ActiveRecord::Base
 	
 	def all_submits
 		self.grades.group_by { |i| i.submit.pset.name }.each_with_object({}) { |(k,v),o| o[k] = v[0] }
+	end
+	
+	# retrieve all submitted file contents for all submits from a particular module (for this user)
+	def files_for_module(mod)
+		files = {}
+		self.submits.where(pset: mod.psets).each do |submit|
+			if submit.file_contents
+				submit.file_contents.each do |filename, contents|
+					files["(#{submit.check_score}) #{submit.pset.name}/#{filename}"] = contents
+				end
+			end
+		end
+		return files
 	end
 	
 	def assign_final_grade(grader)

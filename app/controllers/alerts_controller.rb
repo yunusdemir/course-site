@@ -1,7 +1,7 @@
 class AlertsController < ApplicationController
 
-	before_filter CASClient::Frameworks::Rails::Filter
-	before_filter :require_senior, except: :show
+	before_action :authorize
+	before_action :require_senior, except: :show
 
 	before_action :set_alert, only: [:show, :edit, :update, :destroy]
 
@@ -32,7 +32,7 @@ class AlertsController < ApplicationController
 		
 		if @alert.save
 			send_mail if params[:send_mail]
-			redirect_to :back, notice: 'Alert was successfully created.'
+			redirect_back fallback_location: '/', notice: 'Alert was successfully created.'
 		else
 			render :new
 		end
@@ -69,9 +69,9 @@ class AlertsController < ApplicationController
 	def send_mail
 		from = Settings.mailer_from
 		if not alert_params[:schedule_id].blank?
-			recipients = (Schedule.find(alert_params[:schedule_id]).users.active + Schedule.find(alert_params[:schedule_id]).users.staff).uniq
+			recipients = (Schedule.find(alert_params[:schedule_id]).users.not_inactive + Schedule.find(alert_params[:schedule_id]).users.staff).uniq
 		else
-			recipients = (User.active + User.staff).uniq
+			recipients = (User.not_inactive + User.staff).uniq
 		end
 		recipients.each do |user|
 			AlertMailer.alert_message(user, @alert, from).deliver_later
